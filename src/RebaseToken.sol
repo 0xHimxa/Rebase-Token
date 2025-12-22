@@ -80,7 +80,7 @@ function setIntrestRate(uint256 _newInterestRate) external {
 
 /// @notice Mints new tokens for a given address. Called when a user either deposits or bridges tokens to this chain.
     /// @param _to The address to mint the tokens to.
-    /// @param _value The number of tokens to mint.
+    /// @param _amount The number of tokens to mint.
     /// @param _userInterestRate The interest rate of the user. This is either the contract interest rate if the user is depositing or the user's interest rate from the source token if the user is bridging.
     /// @dev this function increases the total supply.
 
@@ -88,12 +88,29 @@ function setIntrestRate(uint256 _newInterestRate) external {
 
 
 
-function mint(address _to, uint256 _amount) external{
+function mint(address _to, uint256 _amount, uint256 _userInterestRate) external{
     _mintAccruedInterest(_to);
-    s_userInterestRate[_to] = interestRate;
+    s_userInterestRate[_to] = _userInterestRate;
    // s_userLastUpdateTimeStamp[_to] = block.timestamp;
     _mint(_to, _amount);
 } 
+
+
+
+ /// @notice Burns tokens from the sender.
+    /// @param _from The address to burn the tokens from.
+    /// @param _amount The number of tokens to be burned
+    /// @dev this function decreases the total supply.
+
+function burn(address _from, uint256 _amount) external{
+    if(_amount == type(uint256).max){
+        _amount = super.balanceOf(_from);
+    }
+
+
+    _mintAccruedInterest(_from);
+    _burn(_from, _amount);
+}
 
 
 
@@ -113,6 +130,32 @@ function balance0f(address _user) public view returns(uint256){
 
     return (super.balanceOf(_user) * _calculateUserAccumulatedInterest(_user)) / PRECISION_FACTOR;
 }
+
+
+
+function transfer(address _recipient, uint256 amount) public override returns (bool) {
+    _mintAccruedInterest(msg.sender);
+    _mintAccruedInterest(_recipient);
+    if(amount == type(uint256).max){
+        amount = super.balanceOf(msg.sender);
+    }
+
+    if(balanceOf(_recipient)== 0){
+        s_userInterestRate[_recipient] = s_userInterestRate[msg.sender];
+    }
+
+    
+    return super.transfer(_recipient, amount);
+}
+
+
+
+
+
+
+
+
+
 
 
 
@@ -138,11 +181,24 @@ function _calculateUserAccumulatedInterest(address _user) internal view returns(
      * @param _user the address of the user for which the interest is being minted
      *
      */
-     
+
 
 function _mintAccruedInterest(address _user) internal {
+
+    // here we check the user current balane in their wallet
+
+    uint256 previousPrincpalBalance = super.balanceOf(_user);
+
+// we calculate their current balance including interest
+    uint256 currentBalance = balance0f(_user);
+
+
+    uint256 balanceIncrease = currentBalance - previousPrincpalBalance;
   
+  //we  set the user updated timestamp to now
     s_userLastUpdateTimeStamp[_user] = block.timestamp;
+
+    _mint(_user, balanceIncrease);
 }
 
 function getUserInterestRate(address _user) external view returns(uint256){
