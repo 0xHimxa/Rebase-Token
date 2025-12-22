@@ -4,7 +4,7 @@ pragma solidity ^0.8.19;
 
 import {ERC20Burnable,ERC20} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-
+import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 
 
 
@@ -22,7 +22,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 
 
-contract RebaseToken is ERC20{
+contract RebaseToken is ERC20,Ownable,AccessControl {
  
 error RebaseToken__IntrestRateCanOnlyBeDecreased(uint256 currentRate, uint256 newRate);
 
@@ -30,6 +30,7 @@ error RebaseToken__IntrestRateCanOnlyBeDecreased(uint256 currentRate, uint256 ne
   mapping(address user => uint256 interestRate) private s_userInterestRate;
  mapping(address user => uint256 lastUpdate) private s_userLastUpdateTimeStamp;
  uint256 private constant PRECISION_FACTOR = 1e18;
+bytes32 private constant MINT_AND_BURN_ROLE = keccak256("MINT_AND_BURN_ROLE");
 
 
 
@@ -41,10 +42,15 @@ event InterestRateSet(uint256 newInterestRate);
 
 
 
-constructor() ERC20("RebaseToken","RBT"){
+constructor() ERC20("RebaseToken","RBT") Ownable(msg.sender){
    
 
 
+}
+
+
+function grandtMintAndBurnRole(address _account) external onlyOwner{
+    _grantRole(MINT_AND_BURN_ROLE, _account);
 }
 
 
@@ -64,7 +70,7 @@ constructor() ERC20("RebaseToken","RBT"){
      * @param _newInterestRate The new interest rate to set
      * @dev The interest rate can only decrease */
 
-function setIntrestRate(uint256 _newInterestRate) external {
+function setIntrestRate(uint256 _newInterestRate) external onlyOwner{
 
  if(_newInterestRate > interestRate){
     revert RebaseToken__IntrestRateCanOnlyBeDecreased(interestRate, _newInterestRate);
@@ -88,7 +94,7 @@ function setIntrestRate(uint256 _newInterestRate) external {
 
 
 
-function mint(address _to, uint256 _amount, uint256 _userInterestRate) external{
+function mint(address _to, uint256 _amount, uint256 _userInterestRate) external onlyRole(MINT_AND_BURN_ROLE){
     _mintAccruedInterest(_to);
     s_userInterestRate[_to] = _userInterestRate;
    // s_userLastUpdateTimeStamp[_to] = block.timestamp;
@@ -102,7 +108,7 @@ function mint(address _to, uint256 _amount, uint256 _userInterestRate) external{
     /// @param _amount The number of tokens to be burned
     /// @dev this function decreases the total supply.
 
-function burn(address _from, uint256 _amount) external{
+function burn(address _from, uint256 _amount) external onlyRole(MINT_AND_BURN_ROLE){
     if(_amount == type(uint256).max){
         _amount = super.balanceOf(_from);
     }
@@ -133,6 +139,17 @@ function balance0f(address _user) public view returns(uint256){
 
 
 
+
+
+/**
+     * @dev transfers tokens from the sender to the recipient. This function also mints any accrued interest since the last time the user's balance was updated.
+     * @param _recipient the address of the recipient
+     * @param amount the amount of tokens to transfer
+     * @return true if the transfer was successful
+     *
+     */
+
+
 function transfer(address _recipient, uint256 amount) public override returns (bool) {
     _mintAccruedInterest(msg.sender);
     _mintAccruedInterest(_recipient);
@@ -152,6 +169,43 @@ function transfer(address _recipient, uint256 amount) public override returns (b
 
 
 
+    /**
+     * @dev transfers tokens from the sender to the recipient. This function also mints any accrued interest since the last time the user's balance was updated.
+     * @param _sender the address of the sender
+     * @param _recipient the address of the recipient
+     * @param _amount the amount of tokens to transfer
+     * @return true if the transfer was successful
+     *
+     */
+
+
+function transferFrom(address _sender, address _recipient, uint256 _amount) public override returns (bool) {
+    _mintAccruedInterest(_sender);
+    _mintAccruedInterest(_recipient);
+    if(_amount == type(uint256).max){
+        _amount = super.balanceOf(_sender);
+    }
+
+    if(balanceOf(_recipient)== 0){
+        s_userInterestRate[_recipient] = s_userInterestRate[_sender];
+    }
+
+    return super.transferFrom(_sender, _recipient, _amount);
+}
+
+
+ /**
+     * @dev returns the principal balance of the user. The principal balance is the last
+     * updated stored balance, which does not consider the perpetually accruing interest that has not yet been minted.
+     * @param _user the address of the user
+     * @return the principal balance of the user
+     *
+     */
+
+
+function principalBalanceOf(address _user) external view returns(uint256){
+    return super.balanceOf(_user);
+}
 
 
 
@@ -203,6 +257,12 @@ function _mintAccruedInterest(address _user) internal {
 
 function getUserInterestRate(address _user) external view returns(uint256){
     return s_userInterestRate[_user];
+}
+
+
+
+function getInterestRate() external view returns(uint256){
+    return interestRate;
 }
 
 
