@@ -94,7 +94,7 @@ function setIntrestRate(uint256 _newInterestRate) external onlyOwner{
 
 
 
-function mint(address _to, uint256 _amount, uint256 _userInterestRate) external onlyRole(MINT_AND_BURN_ROLE){
+function mint(address _to, uint256 _amount, uint256 _userInterestRate) external  onlyRole(MINT_AND_BURN_ROLE){
    _mintAccruedInterest(_to);
     s_userInterestRate[_to] = _userInterestRate;
  //   s_userLastUpdateTimeStamp[_to] = block.timestamp;
