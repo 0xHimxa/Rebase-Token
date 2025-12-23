@@ -1,6 +1,6 @@
 //SPDX-Licence-Identifier: MIT
 pragma solidity ^0.8.19;
-
+import "forge-std/console.sol";
 
 import {ERC20Burnable,ERC20} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
@@ -26,10 +26,11 @@ contract RebaseToken is ERC20,Ownable,AccessControl {
  
 error RebaseToken__IntrestRateCanOnlyBeDecreased(uint256 currentRate, uint256 newRate);
 
- uint256 private interestRate = 5e10;
   mapping(address user => uint256 interestRate) private s_userInterestRate;
  mapping(address user => uint256 lastUpdate) private s_userLastUpdateTimeStamp;
- uint256 private constant PRECISION_FACTOR = 1e18;
+ uint256 private constant PRECISION_FACTOR = 1e27;
+ uint256 private interestRate = (5 * PRECISION_FACTOR)/ 1e8;
+
 bytes32 private constant MINT_AND_BURN_ROLE = keccak256("MINT_AND_BURN_ROLE");
 
 
@@ -87,19 +88,18 @@ function setIntrestRate(uint256 _newInterestRate) external onlyOwner{
 /// @notice Mints new tokens for a given address. Called when a user either deposits or bridges tokens to this chain.
     /// @param _to The address to mint the tokens to.
     /// @param _amount The number of tokens to mint.
-    /// @param _userInterestRate The interest rate of the user. This is either the contract interest rate if the user is depositing or the user's interest rate from the source token if the user is bridging.
     /// @dev this function increases the total supply.
 
 
 
 
 
-function mint(address _to, uint256 _amount, uint256 _userInterestRate) external onlyRole(MINT_AND_BURN_ROLE){
-    _mintAccruedInterest(_to);
-    s_userInterestRate[_to] = _userInterestRate;
-   // s_userLastUpdateTimeStamp[_to] = block.timestamp;
+function mint(address _to, uint256 _amount /*uint256 _userInterestRate*/) external onlyRole(MINT_AND_BURN_ROLE){
+   _mintAccruedInterest(_to);
+    s_userInterestRate[_to] = interestRate;
+    s_userLastUpdateTimeStamp[_to] = block.timestamp;
     _mint(_to, _amount);
-} 
+}  
 
 
 
@@ -224,6 +224,8 @@ function _calculateUserAccumulatedInterest(address _user) internal view returns(
     uint256 userRate = s_userInterestRate[_user];
     
     uint256 timeDiff = block.timestamp - s_userLastUpdateTimeStamp[_user];
+   console.log("Time Diff:", timeDiff);
+   
     uint256 accumulatedInterest = (userRate * timeDiff);
     return PRECISION_FACTOR + accumulatedInterest;
 }
@@ -242,6 +244,12 @@ function _mintAccruedInterest(address _user) internal {
     // here we check the user current balane in their wallet
 
     uint256 previousPrincpalBalance = super.balanceOf(_user);
+
+if (previousPrincpalBalance == 0) {
+        s_userLastUpdateTimeStamp[_user] = block.timestamp;
+        return;
+    }
+
 
 // we calculate their current balance including interest
     uint256 currentBalance = balance0f(_user);

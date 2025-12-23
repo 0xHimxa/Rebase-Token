@@ -5,3 +5,4 @@
 
 3.  interest ser rate for each user   based on some global interest rate of the protocol at the time the user join
 - the global intrst rate can only be dereased/ and reward ealy adopbter
+edd3
