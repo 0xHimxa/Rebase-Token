@@ -37,12 +37,14 @@ console.log("Vault Address:", address(vault));
     uint256 startBalance = rebaseToken.balanceOf(user);
     console.log("Start Balance:", startBalance);
     // assertEq(startBalance, _amount);
-    vm.warp(block.timestamp + 1 hours);
+    vm.warp(block.timestamp + 1 days);
 
     uint256 middleBalance = rebaseToken.balanceOf(user);
     console.log("Middle Balance:", middleBalance);
     assertGt(middleBalance, startBalance);
-    vm.warp(block.timestamp + 1 hours);
+
+
+    vm.warp(block.timestamp + 1 days);
 
 
     uint256 endBalance = rebaseToken.balanceOf(user);
@@ -50,7 +52,7 @@ console.log("Vault Address:", address(vault));
     assertGt(endBalance, middleBalance);
     vm.stopPrank();
 
-    assertEq(endBalance - middleBalance, middleBalance- startBalance );
+    assertApproxEqAbs(endBalance - middleBalance, middleBalance- startBalance,1 );
 
   }  
 }

@@ -28,8 +28,8 @@ error RebaseToken__IntrestRateCanOnlyBeDecreased(uint256 currentRate, uint256 ne
 
   mapping(address user => uint256 interestRate) private s_userInterestRate;
  mapping(address user => uint256 lastUpdate) private s_userLastUpdateTimeStamp;
- uint256 private constant PRECISION_FACTOR = 1e27;
- uint256 private interestRate = (5 * PRECISION_FACTOR)/ 1e8;
+ uint256 private constant PRECISION_FACTOR = 1e18;
+ uint256 private interestRate = 5e10;
 
 bytes32 private constant MINT_AND_BURN_ROLE = keccak256("MINT_AND_BURN_ROLE");
 
@@ -94,10 +94,10 @@ function setIntrestRate(uint256 _newInterestRate) external onlyOwner{
 
 
 
-function mint(address _to, uint256 _amount /*uint256 _userInterestRate*/) external onlyRole(MINT_AND_BURN_ROLE){
+function mint(address _to, uint256 _amount, uint256 _userInterestRate) external onlyRole(MINT_AND_BURN_ROLE){
    _mintAccruedInterest(_to);
-    s_userInterestRate[_to] = interestRate;
-    s_userLastUpdateTimeStamp[_to] = block.timestamp;
+    s_userInterestRate[_to] = _userInterestRate;
+ //   s_userLastUpdateTimeStamp[_to] = block.timestamp;
     _mint(_to, _amount);
 }  
 
@@ -132,8 +132,9 @@ function burn(address _from, uint256 _amount) external onlyRole(MINT_AND_BURN_RO
 
 
 
-function balance0f(address _user) public view returns(uint256){
-
+function balanceOf(address _user) public view  override returns(uint256){
+console.log("Principal Balance:", super.balanceOf(_user));
+console.log("Accumulated Interest Multiplier:", _calculateUserAccumulatedInterest(_user));
     return (super.balanceOf(_user) * _calculateUserAccumulatedInterest(_user)) / PRECISION_FACTOR;
 }
 
@@ -225,7 +226,7 @@ function _calculateUserAccumulatedInterest(address _user) internal view returns(
     
     uint256 timeDiff = block.timestamp - s_userLastUpdateTimeStamp[_user];
    console.log("Time Diff:", timeDiff);
-   
+   console.log(block.timestamp, 'current timestamp', s_userLastUpdateTimeStamp[_user], 'last update timestamp');
     uint256 accumulatedInterest = (userRate * timeDiff);
     return PRECISION_FACTOR + accumulatedInterest;
 }
@@ -247,18 +248,22 @@ function _mintAccruedInterest(address _user) internal {
 
 if (previousPrincpalBalance == 0) {
         s_userLastUpdateTimeStamp[_user] = block.timestamp;
+    console.log(s_userLastUpdateTimeStamp[_user], 'timestamp updated for zero balance');
+
         return;
     }
 
 
 // we calculate their current balance including interest
-    uint256 currentBalance = balance0f(_user);
+    uint256 currentBalance = balanceOf(_user);
 
 
     uint256 balanceIncrease = currentBalance - previousPrincpalBalance;
   
   //we  set the user updated timestamp to now
     s_userLastUpdateTimeStamp[_user] = block.timestamp;
+    console.log(s_userLastUpdateTimeStamp[_user], 'timestamp updated');
+
 
     _mint(_user, balanceIncrease);
 }
