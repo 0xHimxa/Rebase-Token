@@ -7,3 +7,4 @@
 - the global intrst rate can only be dereased/ and reward ealy adopbter
 
 CCIP
+forge install smartcontractkit/contracts-ccip --no-commit
