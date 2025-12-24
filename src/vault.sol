@@ -28,7 +28,8 @@ receive() external payable{}
 
 
 function deposit() external payable{
-    i_rebaseTokenAddress.mint(msg.sender, msg.value,i_rebaseTokenAddress.getInterestRate());
+    uint256 userInterestRate =  i_rebaseTokenAddress.getInterestRate();
+    i_rebaseTokenAddress.mint(msg.sender, msg.value,userInterestRate);
     emit Deposit(msg.sender, msg.value);
 }
 
