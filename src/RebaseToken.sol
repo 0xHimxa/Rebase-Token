@@ -2,63 +2,35 @@
 pragma solidity ^0.8.19;
 import "forge-std/console.sol";
 
-import {ERC20Burnable,ERC20} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
+import {ERC20Burnable, ERC20} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-
-
 
 /*
 * @title RebaseToken
 * @author Himxa
 * @notice This is a cross-chain rebase token that incentivises users to deposit into a vault and gain interest in rewards.
-* @notice The interest rate in the smart contract can only decrease 
+* @notice The interest rate in the smart contract can only decrease
 * @notice Each will user will have their own interest rate that is the global interest rate at the time of depositing.
 */
 
+contract RebaseToken is ERC20, Ownable, AccessControl {
+    error RebaseToken__IntrestRateCanOnlyBeDecreased(uint256 currentRate, uint256 newRate);
 
+    mapping(address user => uint256 interestRate) private s_userInterestRate;
+    mapping(address user => uint256 lastUpdate) private s_userLastUpdateTimeStamp;
+    uint256 private constant PRECISION_FACTOR = 1e18;
+    uint256 private interestRate = 5e10;
 
+    bytes32 private constant MINT_AND_BURN_ROLE = keccak256("MINT_AND_BURN_ROLE");
 
+    event InterestRateSet(uint256 newInterestRate);
 
+    constructor() ERC20("RebaseToken", "RBT") Ownable(msg.sender) {}
 
-
-contract RebaseToken is ERC20,Ownable,AccessControl {
- 
-error RebaseToken__IntrestRateCanOnlyBeDecreased(uint256 currentRate, uint256 newRate);
-
-  mapping(address user => uint256 interestRate) private s_userInterestRate;
- mapping(address user => uint256 lastUpdate) private s_userLastUpdateTimeStamp;
- uint256 private constant PRECISION_FACTOR = 1e18;
- uint256 private interestRate = 5e10;
-
-bytes32 private constant MINT_AND_BURN_ROLE = keccak256("MINT_AND_BURN_ROLE");
-
-
-
-
-event InterestRateSet(uint256 newInterestRate);
-
-
-
-
-
-
-constructor() ERC20("RebaseToken","RBT") Ownable(msg.sender){
-   
-
-
-}
-
-
-function grandtMintAndBurnRole(address _account) external onlyOwner{
-    _grantRole(MINT_AND_BURN_ROLE, _account);
-}
-
-
-
-
-
-
+    function grandtMintAndBurnRole(address _account) external onlyOwner {
+        _grantRole(MINT_AND_BURN_ROLE, _account);
+    }
 
     /**
      * @dev sets the interest rate of the token. This is only called by the protocol owner.
@@ -69,58 +41,43 @@ function grandtMintAndBurnRole(address _account) external onlyOwner{
     /**
      * @notice Set the interest rate in the contract
      * @param _newInterestRate The new interest rate to set
-     * @dev The interest rate can only decrease */
+     * @dev The interest rate can only decrease
+     */
 
-function setIntrestRate(uint256 _newInterestRate) external onlyOwner{
+    function setIntrestRate(uint256 _newInterestRate) external onlyOwner {
+        if (_newInterestRate > interestRate) {
+            revert RebaseToken__IntrestRateCanOnlyBeDecreased(interestRate, _newInterestRate);
+        }
 
- if(_newInterestRate > interestRate){
-    revert RebaseToken__IntrestRateCanOnlyBeDecreased(interestRate, _newInterestRate);
- }
+        interestRate = _newInterestRate;
+        emit InterestRateSet(_newInterestRate);
+    }
 
-    interestRate = _newInterestRate;
-    emit InterestRateSet(_newInterestRate);
-}   
-
-
-
-
-
-/// @notice Mints new tokens for a given address. Called when a user either deposits or bridges tokens to this chain.
+    /// @notice Mints new tokens for a given address. Called when a user either deposits or bridges tokens to this chain.
     /// @param _to The address to mint the tokens to.
     /// @param _amount The number of tokens to mint.
     /// @dev this function increases the total supply.
 
+    function mint(address _to, uint256 _amount, uint256 _userInterestRate) external onlyRole(MINT_AND_BURN_ROLE) {
+        _mintAccruedInterest(_to);
+        s_userInterestRate[_to] = _userInterestRate;
+        //   s_userLastUpdateTimeStamp[_to] = block.timestamp;
+        _mint(_to, _amount);
+    }
 
-
-
-
-function mint(address _to, uint256 _amount, uint256 _userInterestRate) external  onlyRole(MINT_AND_BURN_ROLE){
-   _mintAccruedInterest(_to);
-    s_userInterestRate[_to] = _userInterestRate;
- //   s_userLastUpdateTimeStamp[_to] = block.timestamp;
-    _mint(_to, _amount);
-}  
-
-
-
- /// @notice Burns tokens from the sender.
+    /// @notice Burns tokens from the sender.
     /// @param _from The address to burn the tokens from.
     /// @param _amount The number of tokens to be burned
     /// @dev this function decreases the total supply.
 
-function burn(address _from, uint256 _amount) external onlyRole(MINT_AND_BURN_ROLE){
-    if(_amount == type(uint256).max){
-        _amount = super.balanceOf(_from);
+    function burn(address _from, uint256 _amount) external onlyRole(MINT_AND_BURN_ROLE) {
+        if (_amount == type(uint256).max) {
+            _amount = super.balanceOf(_from);
+        }
+
+        _mintAccruedInterest(_from);
+        _burn(_from, _amount);
     }
-
-
-    _mintAccruedInterest(_from);
-    _burn(_from, _amount);
-}
-
-
-
-
 
     /**
      * @dev calculates the balance of the user, which is the
@@ -130,19 +87,13 @@ function burn(address _from, uint256 _amount) external onlyRole(MINT_AND_BURN_RO
      *
      */
 
+    function balanceOf(address _user) public view override returns (uint256) {
+        console.log("Principal Balance:", super.balanceOf(_user));
+        console.log("Accumulated Interest Multiplier:", _calculateUserAccumulatedInterest(_user));
+        return (super.balanceOf(_user) * _calculateUserAccumulatedInterest(_user)) / PRECISION_FACTOR;
+    }
 
-
-function balanceOf(address _user) public view  override returns(uint256){
-console.log("Principal Balance:", super.balanceOf(_user));
-console.log("Accumulated Interest Multiplier:", _calculateUserAccumulatedInterest(_user));
-    return (super.balanceOf(_user) * _calculateUserAccumulatedInterest(_user)) / PRECISION_FACTOR;
-}
-
-
-
-
-
-/**
+    /**
      * @dev transfers tokens from the sender to the recipient. This function also mints any accrued interest since the last time the user's balance was updated.
      * @param _recipient the address of the recipient
      * @param amount the amount of tokens to transfer
@@ -150,25 +101,19 @@ console.log("Accumulated Interest Multiplier:", _calculateUserAccumulatedInteres
      *
      */
 
+    function transfer(address _recipient, uint256 amount) public override returns (bool) {
+        _mintAccruedInterest(msg.sender);
+        _mintAccruedInterest(_recipient);
+        if (amount == type(uint256).max) {
+            amount = super.balanceOf(msg.sender);
+        }
 
-function transfer(address _recipient, uint256 amount) public override returns (bool) {
-    _mintAccruedInterest(msg.sender);
-    _mintAccruedInterest(_recipient);
-    if(amount == type(uint256).max){
-        amount = super.balanceOf(msg.sender);
+        if (balanceOf(_recipient) == 0) {
+            s_userInterestRate[_recipient] = s_userInterestRate[msg.sender];
+        }
+
+        return super.transfer(_recipient, amount);
     }
-
-    if(balanceOf(_recipient)== 0){
-        s_userInterestRate[_recipient] = s_userInterestRate[msg.sender];
-    }
-
-    
-    return super.transfer(_recipient, amount);
-}
-
-
-
-
 
     /**
      * @dev transfers tokens from the sender to the recipient. This function also mints any accrued interest since the last time the user's balance was updated.
@@ -179,23 +124,21 @@ function transfer(address _recipient, uint256 amount) public override returns (b
      *
      */
 
+    function transferFrom(address _sender, address _recipient, uint256 _amount) public override returns (bool) {
+        _mintAccruedInterest(_sender);
+        _mintAccruedInterest(_recipient);
+        if (_amount == type(uint256).max) {
+            _amount = super.balanceOf(_sender);
+        }
 
-function transferFrom(address _sender, address _recipient, uint256 _amount) public override returns (bool) {
-    _mintAccruedInterest(_sender);
-    _mintAccruedInterest(_recipient);
-    if(_amount == type(uint256).max){
-        _amount = super.balanceOf(_sender);
+        if (balanceOf(_recipient) == 0) {
+            s_userInterestRate[_recipient] = s_userInterestRate[_sender];
+        }
+
+        return super.transferFrom(_sender, _recipient, _amount);
     }
 
-    if(balanceOf(_recipient)== 0){
-        s_userInterestRate[_recipient] = s_userInterestRate[_sender];
-    }
-
-    return super.transferFrom(_sender, _recipient, _amount);
-}
-
-
- /**
+    /**
      * @dev returns the principal balance of the user. The principal balance is the last
      * updated stored balance, which does not consider the perpetually accruing interest that has not yet been minted.
      * @param _user the address of the user
@@ -203,35 +146,25 @@ function transferFrom(address _sender, address _recipient, uint256 _amount) publ
      *
      */
 
+    function principalBalanceOf(address _user) external view returns (uint256) {
+        return super.balanceOf(_user);
+    }
 
-function principalBalanceOf(address _user) external view returns(uint256){
-    return super.balanceOf(_user);
-}
-
-
-
-
-
-
-
- /**
+    /**
      * @dev returns the interest accrued since the last update of the user's balance - aka since the last time the interest accrued was minted to the user.
      * @return linearInterest the interest accrued since the last update
      *
      */
 
+    function _calculateUserAccumulatedInterest(address _user) internal view returns (uint256) {
+        uint256 userRate = s_userInterestRate[_user];
 
-function _calculateUserAccumulatedInterest(address _user) internal view returns(uint256){
-    uint256 userRate = s_userInterestRate[_user];
-    
-    uint256 timeDiff = block.timestamp - s_userLastUpdateTimeStamp[_user];
-   console.log("Time Diff:", timeDiff);
-   console.log(block.timestamp, 'current timestamp', s_userLastUpdateTimeStamp[_user], 'last update timestamp');
-    uint256 accumulatedInterest = (userRate * timeDiff);
-    return PRECISION_FACTOR + accumulatedInterest;
-}
-
-
+        uint256 timeDiff = block.timestamp - s_userLastUpdateTimeStamp[_user];
+        console.log("Time Diff:", timeDiff);
+        console.log(block.timestamp, "current timestamp", s_userLastUpdateTimeStamp[_user], "last update timestamp");
+        uint256 accumulatedInterest = (userRate * timeDiff);
+        return PRECISION_FACTOR + accumulatedInterest;
+    }
 
     /**
      * @dev accumulates the accrued interest of the user to the principal balance. This function mints the users accrued interest since they last transferred or bridged tokens.
@@ -239,47 +172,35 @@ function _calculateUserAccumulatedInterest(address _user) internal view returns(
      *
      */
 
+    function _mintAccruedInterest(address _user) internal {
+        // here we check the user current balane in their wallet
 
-function _mintAccruedInterest(address _user) internal {
+        uint256 previousPrincpalBalance = super.balanceOf(_user);
 
-    // here we check the user current balane in their wallet
+        if (previousPrincpalBalance == 0) {
+            s_userLastUpdateTimeStamp[_user] = block.timestamp;
+            console.log(s_userLastUpdateTimeStamp[_user], "timestamp updated for zero balance");
 
-    uint256 previousPrincpalBalance = super.balanceOf(_user);
+            return;
+        }
 
-if (previousPrincpalBalance == 0) {
+        // we calculate their current balance including interest
+        uint256 currentBalance = balanceOf(_user);
+
+        uint256 balanceIncrease = currentBalance - previousPrincpalBalance;
+
+        //we  set the user updated timestamp to now
         s_userLastUpdateTimeStamp[_user] = block.timestamp;
-    console.log(s_userLastUpdateTimeStamp[_user], 'timestamp updated for zero balance');
+        console.log(s_userLastUpdateTimeStamp[_user], "timestamp updated");
 
-        return;
+        _mint(_user, balanceIncrease);
     }
 
+    function getUserInterestRate(address _user) external view returns (uint256) {
+        return s_userInterestRate[_user];
+    }
 
-// we calculate their current balance including interest
-    uint256 currentBalance = balanceOf(_user);
-
-
-    uint256 balanceIncrease = currentBalance - previousPrincpalBalance;
-  
-  //we  set the user updated timestamp to now
-    s_userLastUpdateTimeStamp[_user] = block.timestamp;
-    console.log(s_userLastUpdateTimeStamp[_user], 'timestamp updated');
-
-
-    _mint(_user, balanceIncrease);
-}
-
-function getUserInterestRate(address _user) external view returns(uint256){
-    return s_userInterestRate[_user];
-}
-
-
-
-function getInterestRate() external view returns(uint256){
-    return interestRate;
-}
-
-
-
-
-
+    function getInterestRate() external view returns (uint256) {
+        return interestRate;
+    }
 }
