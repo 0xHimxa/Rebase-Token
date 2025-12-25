@@ -8,3 +8,11 @@
 
 CCIP
 forge install smartcontractkit/contracts-ccip --no-commit
+
+// this create a way for us to be able to send cross chian transfer
+
+it help use stimulate local for our testing formforking
+
+//chainlink local
+
+forge install smartcontractkit/chainlink-local@v0.2.7-beta

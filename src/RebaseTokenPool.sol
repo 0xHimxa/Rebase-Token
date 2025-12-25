@@ -28,8 +28,8 @@ contract RebaseTokenPool is TokenPool {
     ) external returns (Pool.LockOrBurnOutV1 memory lockOrBurnOut) {
         //we have to call this function to validate the lock or burn input; so data notting supiious is haping: ask ai or read docs
         _validateLockOrBurn(lockOrBurnIn);
-        address originalSender = abi.decode(lockOrBurnIn.originalSender, (address));
-        uint256 userInterestRate = i_rebaseToken.getUserInterestRate(originalSender);
+        //address originalSender = abi.decode(lockOrBurnIn.originalSender, (address));
+        uint256 userInterestRate = i_rebaseToken.getUserInterestRate(lockOrBurnIn.originalSender);
     i_rebaseToken.burn(
         address(this),
         lockOrBurnIn.amount
