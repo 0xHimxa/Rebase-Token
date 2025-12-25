@@ -15,8 +15,8 @@ import {
     RegistryModuleOwnerCustom
 } from "lib/ccip/contracts/src/v0.8/ccip/tokenAdminRegistry/RegistryModuleOwnerCustom.sol";
 import {TokenAdminRegistry} from "lib/ccip/contracts/src/v0.8/ccip/tokenAdminRegistry/TokenAdminRegistry.sol";
-import {Client} from "lib/ccip/contracts/src/v0.8/Client.sol";
-
+import {Client} from "lib/ccip/contracts/src/v0.8/ccip/libraries/Client.sol";
+import {IRouterClient} from "lib/ccip/contracts/src/v0.8/ccip/interfaces/IRouterClient.sol";
 import {RateLimiter} from "lib/ccip/contracts/src/v0.8/ccip/libraries/RateLimiter.sol";
 //register is a  store struct that contains the roter,selector and cip test token addree
 //click the file for more info
@@ -38,6 +38,7 @@ contract CrossChainTest is Test {
     Register.NetworkDetails arbSepoliaNetworkDetails;
 
     address owner = makeAddr("owner");
+    address user = makeAddr('user');
 
     function setUp() external {
         // here we will deploy the contracts on sepolia fork
@@ -165,6 +166,42 @@ contract CrossChainTest is Test {
         RebaseToken remoteToken
     ) public {
         vm.selectFork(localFork);
-        vm.startPrank(owner);
+        vm.startPrank(user);
+        // i get this from the client file so i know things to pass in
+
+//  struct EVM2AnyMessage {
+//     bytes receiver; // abi.encode(receiver address) for dest EVM chains
+//     bytes data; // Data payload
+//     EVMTokenAmount[] tokenAmounts; // Token transfers
+//     address feeToken; // Address of feeToken. address(0) means you will send msg.value.
+//     bytes extraArgs; // Populate this with _argsToBytes(EVMExtraArgsV2)
+//   }
+
+Client.EVMTokenAmount[] memory tokenAmounts = new Client.EVMTokenAmount[](1);
+
+tokenAmounts[0] = Client.EVMTokenAmount({
+    token: address(localToken),
+    amount: amountToBridge
+});
+
+
+
+
+Client.EVM2AnyMessage memory message = Client.EVM2AnyMessage({
+    //here we assume the user have same address on both chain
+    receiver: abi.encode(user),
+    data: "",
+    tokenAmounts: tokenAmounts,
+    feeToken: localNetworkDetails.linkAddress,
+    extraArgs: Client._argsToBytes(Client.EVMExtraArgsV1({gasLimit: 0}))
+});
+    
+IRouterClient(localNetworkDetails.routerAddress).getFee(remoteNetworkDetails.chainSelector, message);
+
+
+
+
+
+        vm.stopPrank(owner);
     }
 }
