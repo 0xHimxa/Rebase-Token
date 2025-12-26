@@ -39,6 +39,7 @@ contract CrossChainTest is Test {
 
     address owner = makeAddr("owner");
     address user = makeAddr("user");
+    uint256 USER_BAlANCE = 10 ether;
 
     function setUp() external {
         // here we will deploy the contracts on sepolia fork
@@ -48,6 +49,11 @@ contract CrossChainTest is Test {
         //    sepoliaFork = vm.createFork(("sepolia_eth");
         // sepoliaFork = vm.createFork("sepolia_eth");
 
+
+//here i select the for first
+
+
+vm.selectFork(sepoliaFork);
         // now we need to create a way to send cross chain
         ccipLocalSimulatorFork = new CCIPLocalSimulatorFork();
         //now we need a wait to make the local for add presitsnt
@@ -59,7 +65,6 @@ contract CrossChainTest is Test {
         //deploy and configure contracts on sepolia fork
 
         sepoliaNetworkDetails = ccipLocalSimulatorFork.getNetworkDetails(block.chainid);
-        arbSepoliaNetworkDetails = ccipLocalSimulatorFork.getNetworkDetails(block.chainid);
         vm.startPrank(owner);
         sepoliaToken = new RebaseToken();
 
@@ -82,6 +87,12 @@ contract CrossChainTest is Test {
         TokenAdminRegistry(sepoliaNetworkDetails.tokenAdminRegistryAddress)
             .setPool(address(sepoliaToken), address(sepoliaPool));
 
+      
+      
+      
+     
+      
+      
         vm.stopPrank();
 
         arbSepoliaNetworkDetails = ccipLocalSimulatorFork.getNetworkDetails(block.chainid);
@@ -89,6 +100,8 @@ contract CrossChainTest is Test {
         vm.selectFork(arbSepoliaFork);
         vm.startPrank(owner);
         arbSepoliaToken = new RebaseToken();
+        arbSepoliaNetworkDetails = ccipLocalSimulatorFork.getNetworkDetails(block.chainid);
+
 
         arbSepoliaPool = new RebaseTokenPool(
             IERC20(address(arbSepoliaToken)),
@@ -107,8 +120,9 @@ contract CrossChainTest is Test {
         TokenAdminRegistry(arbSepoliaNetworkDetails.tokenAdminRegistryAddress).acceptAdminRole(address(arbSepoliaToken));
         TokenAdminRegistry(arbSepoliaNetworkDetails.tokenAdminRegistryAddress)
             .setPool(address(arbSepoliaToken), address(arbSepoliaPool));
+//paste here
 
-        configureTokenPool(
+   configureTokenPool(
             sepoliaFork,
             address(sepoliaPool),
             arbSepoliaNetworkDetails.chainSelector,
@@ -151,6 +165,10 @@ contract CrossChainTest is Test {
             inboundRateLimiterConfig: RateLimiter.Config({isEnabled: false, capacity: 0, rate: 0})
         });
 
+
+// --- ADD THIS LINE ---
+    TokenPool(localPool).applyChainControlConfigUpdate(chainToAdd);
+    // ---------------------
         vm.stopPrank();
     }
 
@@ -187,25 +205,25 @@ contract CrossChainTest is Test {
             data: "",
             tokenAmounts: tokenAmounts,
             feeToken: localNetworkDetails.linkAddress,
-            extraArgs: Client._argsToBytes(Client.EVMExtraArgsV1({gasLimit: 0}))
+            extraArgs: Client._argsToBytes(Client.EVMExtraArgsV1({gasLimit: 100000}))
             //setting extraags to zero means we dont want ustom gas
         });
 
         uint256 fee =
             IRouterClient(localNetworkDetails.routerAddress).getFee(remoteNetworkDetails.chainSelector, message);
         //this line is line vm.deal, but for forking it will fund us with test link
-        ccipLocalSimulatorFork.requestLinkFromFaucet(user, fee);
+        ccipLocalSimulatorFork.requestLinkFromFaucet(owner, fee);
 
-        vm.prank(user);
+        vm.prank(owner);
 
         IERC20(localNetworkDetails.linkAddress).approve(localNetworkDetails.routerAddress, fee);
-        vm.prank(user);
+        vm.prank(owner);
 
         IERC20(address(localToken)).approve(localNetworkDetails.routerAddress, amountToBridge);
 
         uint256 localBalanceBefore = localToken.balanceOf(user);
 
-       vm.prank(user);
+       vm.prank(owner);
         IRouterClient(localNetworkDetails.routerAddress).ccipSend(remoteNetworkDetails.chainSelector, message);
 
 
@@ -225,4 +243,21 @@ contract CrossChainTest is Test {
 
     assertEq(remoteToken.balanceOf(user),remoteBalanceBefore + amountToBridge);
     }
+
+
+
+function testBridgeAllTokens() public{
+    console.log(sepoliaFork);
+    vm.selectFork(sepoliaFork);
+    vm.deal(owner, USER_BAlANCE);
+    vm.prank(owner);
+    vault.deposit{value: USER_BAlANCE}();
+    assertEq(sepoliaToken.balanceOf(owner), USER_BAlANCE);
+
+    bridgeTokens(2 ether, sepoliaFork, arbSepoliaFork, sepoliaNetworkDetails, arbSepoliaNetworkDetails, sepoliaToken, arbSepoliaToken);
+
+    
+}
+
+
 }
