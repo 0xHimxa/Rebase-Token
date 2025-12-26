@@ -38,7 +38,7 @@ contract CrossChainTest is Test {
     Register.NetworkDetails arbSepoliaNetworkDetails;
 
     address owner = makeAddr("owner");
-    address user = makeAddr('user');
+    address user = makeAddr("user");
 
     function setUp() external {
         // here we will deploy the contracts on sepolia fork
@@ -166,42 +166,63 @@ contract CrossChainTest is Test {
         RebaseToken remoteToken
     ) public {
         vm.selectFork(localFork);
-        vm.startPrank(user);
+
         // i get this from the client file so i know things to pass in
 
-//  struct EVM2AnyMessage {
-//     bytes receiver; // abi.encode(receiver address) for dest EVM chains
-//     bytes data; // Data payload
-//     EVMTokenAmount[] tokenAmounts; // Token transfers
-//     address feeToken; // Address of feeToken. address(0) means you will send msg.value.
-//     bytes extraArgs; // Populate this with _argsToBytes(EVMExtraArgsV2)
-//   }
+        //  struct EVM2AnyMessage {
+        //     bytes receiver; // abi.encode(receiver address) for dest EVM chains
+        //     bytes data; // Data payload
+        //     EVMTokenAmount[] tokenAmounts; // Token transfers
+        //     address feeToken; // Address of feeToken. address(0) means you will send msg.value.
+        //     bytes extraArgs; // Populate this with _argsToBytes(EVMExtraArgsV2)
+        //   }
 
-Client.EVMTokenAmount[] memory tokenAmounts = new Client.EVMTokenAmount[](1);
+        Client.EVMTokenAmount[] memory tokenAmounts = new Client.EVMTokenAmount[](1);
 
-tokenAmounts[0] = Client.EVMTokenAmount({
-    token: address(localToken),
-    amount: amountToBridge
-});
+        tokenAmounts[0] = Client.EVMTokenAmount({token: address(localToken), amount: amountToBridge});
+
+        Client.EVM2AnyMessage memory message = Client.EVM2AnyMessage({
+            //here we assume the user have same address on both chain
+            receiver: abi.encode(user),
+            data: "",
+            tokenAmounts: tokenAmounts,
+            feeToken: localNetworkDetails.linkAddress,
+            extraArgs: Client._argsToBytes(Client.EVMExtraArgsV1({gasLimit: 0}))
+            //setting extraags to zero means we dont want ustom gas
+        });
+
+        uint256 fee =
+            IRouterClient(localNetworkDetails.routerAddress).getFee(remoteNetworkDetails.chainSelector, message);
+        //this line is line vm.deal, but for forking it will fund us with test link
+        ccipLocalSimulatorFork.requestLinkFromFaucet(user, fee);
+
+        vm.prank(user);
+
+        IERC20(localNetworkDetails.linkAddress).approve(localNetworkDetails.routerAddress, fee);
+        vm.prank(user);
+
+        IERC20(address(localToken)).approve(localNetworkDetails.routerAddress, amountToBridge);
+
+        uint256 localBalanceBefore = localToken.balanceOf(user);
+
+       vm.prank(user);
+        IRouterClient(localNetworkDetails.routerAddress).ccipSend(remoteNetworkDetails.chainSelector, message);
+
+
+        assertEq(localToken.balanceOf(user),localBalanceBefore - amountToBridge);
+    uint256 localUserInterest = localToken.getUserInterestRate(user);
 
 
 
+        vm.selectFork(remoteFork);
+        vm.warp(block.timestamp + 20 minutes);
+        uint256 remoteBalanceBefore = remoteToken.balanceOf(user);
 
-Client.EVM2AnyMessage memory message = Client.EVM2AnyMessage({
-    //here we assume the user have same address on both chain
-    receiver: abi.encode(user),
-    data: "",
-    tokenAmounts: tokenAmounts,
-    feeToken: localNetworkDetails.linkAddress,
-    extraArgs: Client._argsToBytes(Client.EVMExtraArgsV1({gasLimit: 0}))
-});
-    
-IRouterClient(localNetworkDetails.routerAddress).getFee(remoteNetworkDetails.chainSelector, message);
+        ccipLocalSimulatorFork.switchChainAndRouteMessage(remoteFork);
 
+    uint256 remoteUserInterest = remoteToken.getUserInterestRate(user);
+    assertEq(localUserInterest, remoteUserInterest);
 
-
-
-
-        vm.stopPrank(owner);
+    assertEq(remoteToken.balanceOf(user),remoteBalanceBefore + amountToBridge);
     }
 }
