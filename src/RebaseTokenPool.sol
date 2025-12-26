@@ -1,5 +1,6 @@
 //SPDX-Licence-Identifier: MIT
 pragma solidity ^0.8.19;
+import "forge-std/console.sol";
 
 import {TokenPool} from "lib/ccip/contracts/src/v0.8/ccip/pools/TokenPool.sol";
 import {IERC20} from "lib/ccip/contracts/src/v0.8/vendor/openzeppelin-solidity/v4.8.3/contracts/token/ERC20/IERC20.sol";
@@ -44,6 +45,7 @@ contract RebaseTokenPool is TokenPool {
         external
         returns (Pool.ReleaseOrMintOutV1 memory releaseOrMintOut)
     {
+        console.log('release is been called');
         _validateReleaseOrMint(releaseOrMintIn);
         uint256 userInterestRate = abi.decode(releaseOrMintIn.sourcePoolData, (uint256));
 

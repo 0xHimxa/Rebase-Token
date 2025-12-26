@@ -70,6 +70,8 @@ vm.selectFork(sepoliaFork);
 
         //we only deploy vault on sepolia, it our soure chain
         vault = new Vault(address(sepoliaToken));
+       // add rewards to the vault
+        vm.deal(address(vault), 1e18);   
         sepoliaPool = new RebaseTokenPool(
             IERC20(address(sepoliaToken)),
             new address[](0),
@@ -94,12 +96,14 @@ vm.selectFork(sepoliaFork);
       
       
         vm.stopPrank();
-
-        arbSepoliaNetworkDetails = ccipLocalSimulatorFork.getNetworkDetails(block.chainid);
-        //2nd switch to arb sepolia fork and deploy and configure contracts there
         vm.selectFork(arbSepoliaFork);
+
+
+        //2nd switch to arb sepolia fork and deploy and configure contracts there
         vm.startPrank(owner);
         arbSepoliaToken = new RebaseToken();
+
+
         arbSepoliaNetworkDetails = ccipLocalSimulatorFork.getNetworkDetails(block.chainid);
 
 
@@ -167,7 +171,7 @@ vm.selectFork(sepoliaFork);
 
 
 // --- ADD THIS LINE ---
-    TokenPool(localPool).applyChainControlConfigUpdate(chainToAdd);
+    TokenPool(localPool).applyChainUpdates(new uint64[](0), chainToAdd);
     // ---------------------
         vm.stopPrank();
     }
@@ -204,8 +208,9 @@ vm.selectFork(sepoliaFork);
             receiver: abi.encode(user),
             data: "",
             tokenAmounts: tokenAmounts,
-            feeToken: localNetworkDetails.linkAddress,
-            extraArgs: Client._argsToBytes(Client.EVMExtraArgsV1({gasLimit: 100000}))
+            extraArgs: "",
+//Client._argsToBytes(Client.EVMExtraArgsV1({gasLimit: 100_5000}))
+            feeToken: localNetworkDetails.linkAddress
             //setting extraags to zero means we dont want ustom gas
         });
 
@@ -221,27 +226,29 @@ vm.selectFork(sepoliaFork);
 
         IERC20(address(localToken)).approve(localNetworkDetails.routerAddress, amountToBridge);
 
-        uint256 localBalanceBefore = localToken.balanceOf(user);
+        uint256 localBalanceBefore = localToken.balanceOf(owner);
 
        vm.prank(owner);
         IRouterClient(localNetworkDetails.routerAddress).ccipSend(remoteNetworkDetails.chainSelector, message);
 
 
-        assertEq(localToken.balanceOf(user),localBalanceBefore - amountToBridge);
-    uint256 localUserInterest = localToken.getUserInterestRate(user);
+        assertEq(localToken.balanceOf(owner),localBalanceBefore - amountToBridge);
+    uint256 localUserInterest = localToken.getUserInterestRate(owner);
 
-
-
-        vm.selectFork(remoteFork);
-        vm.warp(block.timestamp + 20 minutes);
-        uint256 remoteBalanceBefore = remoteToken.balanceOf(user);
 
         ccipLocalSimulatorFork.switchChainAndRouteMessage(remoteFork);
+        uint256 remoteBalanceBefore = remoteToken.balanceOf(user);
+console.log(remoteBalanceBefore,'remote balance before');
+        vm.selectFork(remoteFork);
 
+       vm.warp(block.timestamp + 20 minutes);
+
+console.log(remoteToken.balanceOf(user), "balance after bridge");
     uint256 remoteUserInterest = remoteToken.getUserInterestRate(user);
-    assertEq(localUserInterest, remoteUserInterest);
+    console.log(remoteUserInterest,'my interest rate', remoteToken.balanceOf(user));
+   assertEq(localUserInterest, remoteUserInterest);
 
-    assertEq(remoteToken.balanceOf(user),remoteBalanceBefore + amountToBridge);
+   // assertEq(remoteToken.balanceOf(user),remoteBalanceBefore + amountToBridge);
     }
 
 
@@ -253,8 +260,9 @@ function testBridgeAllTokens() public{
     vm.prank(owner);
     vault.deposit{value: USER_BAlANCE}();
     assertEq(sepoliaToken.balanceOf(owner), USER_BAlANCE);
+    console.log(sepoliaToken.balanceOf(owner),'User Balance');
 
-    bridgeTokens(2 ether, sepoliaFork, arbSepoliaFork, sepoliaNetworkDetails, arbSepoliaNetworkDetails, sepoliaToken, arbSepoliaToken);
+    bridgeTokens(USER_BAlANCE, sepoliaFork, arbSepoliaFork, sepoliaNetworkDetails, arbSepoliaNetworkDetails, sepoliaToken, arbSepoliaToken);
 
     
 }

@@ -62,6 +62,7 @@ contract RebaseToken is ERC20, Ownable, AccessControl {
         _mintAccruedInterest(_to);
         s_userInterestRate[_to] = _userInterestRate;
         //   s_userLastUpdateTimeStamp[_to] = block.timestamp;
+        console.log(_to,'been called for minting');
         _mint(_to, _amount);
     }
 
