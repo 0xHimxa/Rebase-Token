@@ -45,7 +45,7 @@ contract RebaseTokenPool is TokenPool {
         external
         returns (Pool.ReleaseOrMintOutV1 memory releaseOrMintOut)
     {
-        console.log('release is been called');
+        console.log("release is been called");
         _validateReleaseOrMint(releaseOrMintIn);
         uint256 userInterestRate = abi.decode(releaseOrMintIn.sourcePoolData, (uint256));
 
