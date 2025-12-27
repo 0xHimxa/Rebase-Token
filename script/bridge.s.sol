@@ -4,6 +4,7 @@ pragma solidity ^0.8.19;
 import {Script} from "forge-std/Script.sol";
 import {IRouterClient} from "lib/ccip/contracts/src/v0.8/ccip/interfaces/IRouterClient.sol";
 import {Client} from "lib/ccip/contracts/src/v0.8/ccip/libraries/Client.sol";
+import {IERC20} from "lib/ccip/contracts/src/v0.8/vendor/openzeppelin-solidity/v4.8.3/contracts/token/ERC20/IERC20.sol";
 
 contract BridgeTokenSript is Script {
     function run(
@@ -25,6 +26,9 @@ contract BridgeTokenSript is Script {
             extraArgs: "",
             feeToken: linkAddress
         });
+        uint256 fee = IRouterClient(routerAddress).getFee(destinationChainSelector, message);
+        IERC20(linkAddress).approve(routerAddress, fee);
+IERC20(tokenToSendAddress).approve(routerAddress, amountToSend);
 
         IRouterClient(routerAddress).ccipSend(destinationChainSelector, message);
 

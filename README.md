@@ -16,3 +16,6 @@ it help use stimulate local for our testing formforking
 //chainlink local
 
 forge install smartcontractkit/chainlink-local@v0.2.7-beta
+
+via_ir = true
+check more abou: 
