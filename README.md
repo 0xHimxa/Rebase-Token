@@ -19,3 +19,6 @@ forge install smartcontractkit/chainlink-local@v0.2.7-beta
 
 via_ir = true
 check more abou: 
+
+
+completed remaining deployment it was really fun tho
